@@ -1,0 +1,59 @@
+<Window x:Class="EyePeeOnMyTV.Dialogs.VideoAdjustmentsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Video Adjustments"
+        Width="420" SizeToContent="Height"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize"
+        Background="{StaticResource AppBackgroundBrush}"
+        Foreground="{StaticResource AppForegroundBrush}">
+    <StackPanel Margin="20">
+        <CheckBox x:Name="EnableCheckBox" Content="Enable Adjustments" Margin="0,0,0,16"
+                  Checked="EnableCheckBox_Changed" Unchecked="EnableCheckBox_Changed" />
+
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="90" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="60" />
+            </Grid.ColumnDefinitions>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <TextBlock Grid.Row="0" Grid.Column="0" Text="Contrast" VerticalAlignment="Center" />
+            <Slider x:Name="ContrastSlider" Grid.Row="0" Grid.Column="1" Minimum="0" Maximum="2"
+                    ValueChanged="ContrastSlider_ValueChanged" Margin="0,6" />
+            <TextBlock x:Name="ContrastValueText" Grid.Row="0" Grid.Column="2" VerticalAlignment="Center" />
+
+            <TextBlock Grid.Row="1" Grid.Column="0" Text="Brightness" VerticalAlignment="Center" />
+            <Slider x:Name="BrightnessSlider" Grid.Row="1" Grid.Column="1" Minimum="0" Maximum="2"
+                    ValueChanged="BrightnessSlider_ValueChanged" Margin="0,6" />
+            <TextBlock x:Name="BrightnessValueText" Grid.Row="1" Grid.Column="2" VerticalAlignment="Center" />
+
+            <TextBlock Grid.Row="2" Grid.Column="0" Text="Hue" VerticalAlignment="Center" />
+            <Slider x:Name="HueSlider" Grid.Row="2" Grid.Column="1" Minimum="-180" Maximum="180"
+                    ValueChanged="HueSlider_ValueChanged" Margin="0,6" />
+            <TextBlock x:Name="HueValueText" Grid.Row="2" Grid.Column="2" VerticalAlignment="Center" />
+
+            <TextBlock Grid.Row="3" Grid.Column="0" Text="Saturation" VerticalAlignment="Center" />
+            <Slider x:Name="SaturationSlider" Grid.Row="3" Grid.Column="1" Minimum="0" Maximum="3"
+                    ValueChanged="SaturationSlider_ValueChanged" Margin="0,6" />
+            <TextBlock x:Name="SaturationValueText" Grid.Row="3" Grid.Column="2" VerticalAlignment="Center" />
+
+            <TextBlock Grid.Row="4" Grid.Column="0" Text="Gamma" VerticalAlignment="Center" />
+            <Slider x:Name="GammaSlider" Grid.Row="4" Grid.Column="1" Minimum="0.01" Maximum="10"
+                    ValueChanged="GammaSlider_ValueChanged" Margin="0,6" />
+            <TextBlock x:Name="GammaValueText" Grid.Row="4" Grid.Column="2" VerticalAlignment="Center" />
+        </Grid>
+
+        <Button Content="Reset to Defaults" HorizontalAlignment="Right" Margin="0,16,0,0"
+                Click="ResetButton_Click" Padding="10,6"
+                Background="{StaticResource AppSurfaceBrush}" Foreground="{StaticResource AppForegroundBrush}"
+                BorderThickness="0" />
+    </StackPanel>
+</Window>

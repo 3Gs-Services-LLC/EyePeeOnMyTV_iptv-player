@@ -1,0 +1,21 @@
+<Window x:Class="EyePeeOnMyTV.Dialogs.MessagesWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Messages"
+        Width="700" Height="450"
+        WindowStartupLocation="CenterOwner"
+        Background="{StaticResource AppBackgroundBrush}"
+        Foreground="{StaticResource AppForegroundBrush}"
+        Closing="Window_Closing">
+    <DockPanel Margin="16">
+        <Button DockPanel.Dock="Top" Content="Clear" HorizontalAlignment="Right" Margin="0,0,0,10"
+                Click="ClearButton_Click" Padding="10,6"
+                Background="{StaticResource AppSurfaceBrush}" Foreground="{StaticResource AppForegroundBrush}"
+                BorderThickness="0" />
+        <TextBox x:Name="LogTextBox" IsReadOnly="True" TextWrapping="NoWrap"
+                 FontFamily="Consolas" FontSize="12"
+                 Background="{StaticResource AppSurfaceBrush}" Foreground="{StaticResource AppForegroundBrush}"
+                 BorderThickness="0"
+                 VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" />
+    </DockPanel>
+</Window>

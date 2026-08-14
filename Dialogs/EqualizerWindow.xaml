@@ -1,0 +1,27 @@
+<Window x:Class="EyePeeOnMyTV.Dialogs.EqualizerWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Equalizer"
+        Width="560" SizeToContent="Height"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize"
+        Background="{StaticResource AppBackgroundBrush}"
+        Foreground="{StaticResource AppForegroundBrush}">
+    <StackPanel Margin="20">
+        <StackPanel Orientation="Horizontal" Margin="0,0,0,16">
+            <CheckBox x:Name="EnableCheckBox" Content="Enable Equalizer" VerticalAlignment="Center"
+                      Margin="0,0,20,0" Checked="EnableCheckBox_Changed" Unchecked="EnableCheckBox_Changed" />
+            <TextBlock Text="Preset:" VerticalAlignment="Center" Margin="0,0,8,0" />
+            <ComboBox x:Name="PresetComboBox" Width="200" SelectionChanged="PresetComboBox_SelectionChanged" />
+        </StackPanel>
+
+        <StackPanel Orientation="Horizontal" Margin="0,0,0,16">
+            <TextBlock Text="Preamp" Width="70" VerticalAlignment="Center" />
+            <Slider x:Name="PreampSlider" Minimum="-20" Maximum="20" Width="340"
+                    ValueChanged="PreampSlider_ValueChanged" />
+            <TextBlock x:Name="PreampValueText" Width="60" VerticalAlignment="Center" Margin="8,0,0,0" />
+        </StackPanel>
+
+        <StackPanel x:Name="BandsPanel" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,4,0,0" />
+    </StackPanel>
+</Window>

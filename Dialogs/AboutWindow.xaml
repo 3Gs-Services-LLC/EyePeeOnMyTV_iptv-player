@@ -1,0 +1,25 @@
+<Window x:Class="EyePeeOnMyTV.Dialogs.AboutWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="About EyePeeOnMyTV"
+        Width="420" SizeToContent="Height"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize"
+        Background="{StaticResource AppBackgroundBrush}"
+        Foreground="{StaticResource AppForegroundBrush}">
+    <StackPanel Margin="24">
+        <Image Source="/EyePeeOnMyTV About Us Logo.png" Height="160" Stretch="Uniform"
+               HorizontalAlignment="Center" Margin="0,0,0,16" />
+        <TextBlock Text="EyePeeOnMyTV" FontSize="22" FontWeight="Bold" Margin="0,0,0,4" />
+        <TextBlock x:Name="VersionText" Foreground="{StaticResource AppMutedBrush}" Margin="0,0,0,16" />
+        <TextBlock TextWrapping="Wrap" Margin="0,0,0,8">
+            A lightweight IPTV player built with WPF and libVLC (via LibVLCSharp).
+        </TextBlock>
+        <TextBlock TextWrapping="Wrap" Foreground="{StaticResource AppMutedBrush}" Margin="0,0,0,16">
+            Playback is powered by the VideoLAN libVLC engine, embedded directly in-process.
+        </TextBlock>
+        <Button Content="OK" Width="80" HorizontalAlignment="Right" IsDefault="True" IsCancel="True"
+                Click="OkButton_Click" Padding="8,6"
+                Background="{StaticResource AppAccentBrush}" Foreground="White" BorderThickness="0" />
+    </StackPanel>
+</Window>

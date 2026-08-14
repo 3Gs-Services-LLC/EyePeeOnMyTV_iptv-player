@@ -1,0 +1,27 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(dotnet --version)",
+      "WebSearch",
+      "WebFetch(domain:www.nuget.org)",
+      "PowerShell(winget --version 2>&1)",
+      "PowerShell(winget search Microsoft.DotNet.SDK.8 2>&1)",
+      "PowerShell(winget install --id Microsoft.DotNet.SDK.8 --silent --accept-package-agreements --accept-source-agreements 2>&1)",
+      "PowerShell(Get-ChildItem \"C:\\\\Users\\\\Gramps\\\\EyePeeOnMyTV\\\\bin\\\\Release\\\\net8.0-windows\\\\win-x64\\\\publish\\\\\" | Select-Object Name, @{N='SizeMB';E={[math]::Round\\($_.Length/1MB,1\\)}})",
+      "PowerShell(Start-Process \"C:\\\\Users\\\\Gramps\\\\EyePeeOnMyTV\\\\bin\\\\Release\\\\net8.0-windows\\\\win-x64\\\\publish\\\\EyePeeOnMyTV.exe\")",
+      "PowerShell(Get-Process -Name EyePeeOnMyTV -ErrorAction SilentlyContinue)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "Bash(gh api *)",
+      "Bash(gh search *)",
+      "Bash(gh api repos/videolan/libvlcsharp/contents/src/LibVLCSharp/Shared/MediaPlayer.cs?ref=3.x --jq '.content' | base64 -d > /tmp/mp.cs *)",
+      "Bash(gh api repos/videolan/libvlcsharp/contents/src/LibVLCSharp/Shared/LibVLC.cs?ref=3.x --jq '.content' | base64 -d > /tmp/libvlc.cs *)",
+      "Bash(PATH='/c/Program Files/dotnet:__TRACKED_VAR__' dotnet build -c Debug)",
+      "Bash(powershell.exe -Command \"Stop-Process -Name EyePeeOnMyTV -Force -ErrorAction SilentlyContinue\")",
+      "Bash(PATH='/c/Program Files/dotnet:__TRACKED_VAR__' dotnet publish -r win-x64 --self-contained true -p:PublishSingleFile=true -c Release)",
+      "Bash(powershell.exe -Command \"Get-Process -Name EyePeeOnMyTV -ErrorAction SilentlyContinue | Stop-Process -Force\")",
+      "Bash(powershell.exe -Command \"Get-Process -Name EyePeeOnMyTV -ErrorAction SilentlyContinue | Select-Object Id, StartTime\")",
+      "Bash(xxd \"C:\\\\Users\\\\Gramps\\\\EyePeeOnMyTV\\\\favicon.ico\")"
+    ]
+  }
+}

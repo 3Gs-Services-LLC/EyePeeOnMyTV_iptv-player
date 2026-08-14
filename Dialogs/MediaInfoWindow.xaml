@@ -1,0 +1,12 @@
+<Window x:Class="EyePeeOnMyTV.Dialogs.MediaInfoWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Media Information"
+        Width="560" Height="480"
+        WindowStartupLocation="CenterOwner"
+        Background="{StaticResource AppBackgroundBrush}"
+        Foreground="{StaticResource AppForegroundBrush}">
+    <ScrollViewer Margin="20" VerticalScrollBarVisibility="Auto">
+        <TextBlock x:Name="InfoText" TextWrapping="Wrap" FontFamily="Consolas" FontSize="13" />
+    </ScrollViewer>
+</Window>

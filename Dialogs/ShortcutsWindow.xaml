@@ -1,0 +1,12 @@
+<Window x:Class="EyePeeOnMyTV.Dialogs.ShortcutsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Keyboard Shortcuts"
+        Width="640" Height="600"
+        WindowStartupLocation="CenterOwner"
+        Background="{StaticResource AppBackgroundBrush}"
+        Foreground="{StaticResource AppForegroundBrush}">
+    <ScrollViewer Margin="20" VerticalScrollBarVisibility="Auto">
+        <StackPanel x:Name="ContentPanel" />
+    </ScrollViewer>
+</Window>

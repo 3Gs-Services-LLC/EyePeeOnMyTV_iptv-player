@@ -1,0 +1,112 @@
+<Window x:Class="EyePeeOnMyTV.Dialogs.SettingsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Settings"
+        Width="520" SizeToContent="Height"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize"
+        Background="{StaticResource AppBackgroundBrush}"
+        Foreground="{StaticResource AppForegroundBrush}"
+        KeyDown="Window_KeyDown">
+    <Window.Resources>
+        <Style TargetType="TextBox">
+            <Setter Property="Padding" Value="8,6" />
+            <Setter Property="Background" Value="{StaticResource AppSurfaceBrush}" />
+            <Setter Property="Foreground" Value="{StaticResource AppForegroundBrush}" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="CaretBrush" Value="White" />
+        </Style>
+        <Style TargetType="PasswordBox">
+            <Setter Property="Padding" Value="8,6" />
+            <Setter Property="Background" Value="{StaticResource AppSurfaceBrush}" />
+            <Setter Property="Foreground" Value="{StaticResource AppForegroundBrush}" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="CaretBrush" Value="White" />
+        </Style>
+        <Style x:Key="SectionHeaderStyle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="16" />
+            <Setter Property="FontWeight" Value="Bold" />
+            <Setter Property="Margin" Value="0,20,0,10" />
+        </Style>
+        <Style x:Key="FieldLabelStyle" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{StaticResource AppMutedBrush}" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Margin" Value="0,8,0,3" />
+        </Style>
+        <Style x:Key="SmallIconButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="{StaticResource AppSurfaceBrush}" />
+            <Setter Property="Foreground" Value="{StaticResource AppForegroundBrush}" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="10,6" />
+            <Setter Property="Cursor" Value="Hand" />
+        </Style>
+    </Window.Resources>
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto" MaxHeight="700">
+        <StackPanel Margin="24">
+            <TextBlock Text="Settings" FontSize="22" FontWeight="Bold" />
+
+            <!-- ===== IPTV Info ===== -->
+            <TextBlock Text="IPTV Info" Style="{StaticResource SectionHeaderStyle}" />
+
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                <RadioButton x:Name="M3uModeRadio" Content="M3U URL" GroupName="PlaylistMode"
+                             Foreground="{StaticResource AppForegroundBrush}" Margin="0,0,20,0"
+                             Checked="PlaylistModeRadio_Checked" />
+                <RadioButton x:Name="XtreamModeRadio" Content="Xtream Codes" GroupName="PlaylistMode"
+                             Foreground="{StaticResource AppForegroundBrush}"
+                             Checked="PlaylistModeRadio_Checked" />
+            </StackPanel>
+
+            <StackPanel x:Name="M3uPanel">
+                <TextBlock Text="M3U Playlist URL" Style="{StaticResource FieldLabelStyle}" />
+                <TextBox x:Name="M3uUrlBox" />
+            </StackPanel>
+
+            <StackPanel x:Name="XtreamPanel" Visibility="Collapsed">
+                <TextBlock Text="Server URL" Style="{StaticResource FieldLabelStyle}" />
+                <TextBox x:Name="XtreamServerBox" />
+
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="12" />
+                        <ColumnDefinition Width="100" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0">
+                        <TextBlock Text="Username" Style="{StaticResource FieldLabelStyle}" />
+                        <TextBox x:Name="XtreamUsernameBox" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="2">
+                        <TextBlock Text="Port (optional)" Style="{StaticResource FieldLabelStyle}" />
+                        <TextBox x:Name="XtreamPortBox" />
+                    </StackPanel>
+                </Grid>
+
+                <TextBlock Text="Password" Style="{StaticResource FieldLabelStyle}" />
+                <PasswordBox x:Name="XtreamPasswordBox" />
+            </StackPanel>
+
+            <!-- ===== EPG Info ===== -->
+            <Grid Margin="0,20,0,10">
+                <TextBlock Text="EPG Info" Style="{StaticResource SectionHeaderStyle}" Margin="0" VerticalAlignment="Center" />
+                <Button Content="+ Add EPG URL" HorizontalAlignment="Right" Style="{StaticResource SmallIconButtonStyle}"
+                        Click="AddEpgRowButton_Click" />
+            </Grid>
+
+            <StackPanel x:Name="EpgRowsPanel" />
+
+            <!-- ===== Validation / actions ===== -->
+            <TextBlock x:Name="ErrorText" Foreground="#FF6B6B" TextWrapping="Wrap" Margin="0,16,0,0"
+                       Visibility="Collapsed" />
+
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,20,0,0">
+                <Button Content="Cancel" Width="90" Margin="0,0,8,0" Padding="8,6" Click="CancelButton_Click"
+                        Background="{StaticResource AppSurfaceBrush}" Foreground="{StaticResource AppForegroundBrush}"
+                        BorderThickness="0" />
+                <Button Content="Save" Width="90" Padding="8,6" Click="SaveButton_Click" IsDefault="True"
+                        Background="{StaticResource AppAccentBrush}" Foreground="White" BorderThickness="0" />
+            </StackPanel>
+        </StackPanel>
+    </ScrollViewer>
+</Window>
