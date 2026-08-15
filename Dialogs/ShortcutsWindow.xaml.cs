@@ -32,8 +32,8 @@ public partial class ShortcutsWindow : Window
                 new ShortcutEntry("Left", "Jump Backward 10s", "Seeks back 10 seconds (seekable streams only)"),
                 new ShortcutEntry("Right", "Jump Forward 10s", "Seeks forward 10 seconds (seekable streams only)"),
                 new ShortcutEntry("E", "Next Frame", "Advances one frame while paused"),
-                new ShortcutEntry("Down", "Previous Channel", "Plays the previous channel in the current (filtered) list"),
-                new ShortcutEntry("Up", "Next Channel", "Plays the next channel in the current (filtered) list"),
+                new ShortcutEntry("Up", "Previous Channel", "Plays the previous channel in the current (filtered) list"),
+                new ShortcutEntry("Down", "Next Channel", "Plays the next channel in the current (filtered) list"),
             }),
             ("Channel List", new[]
             {

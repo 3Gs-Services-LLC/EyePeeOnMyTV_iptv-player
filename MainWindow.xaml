@@ -107,8 +107,8 @@
                             <MenuItem Header="2x" Tag="2.0" Click="Playback_Speed_Click" />
                         </MenuItem>
                         <Separator />
-                        <MenuItem Header="Previous Channel" InputGestureText="Down" Click="PreviousButton_Click" />
-                        <MenuItem Header="Next Channel" InputGestureText="Up" Click="NextButton_Click" />
+                        <MenuItem Header="Previous Channel" InputGestureText="Up" Click="PreviousButton_Click" />
+                        <MenuItem Header="Next Channel" InputGestureText="Down" Click="NextButton_Click" />
                     </MenuItem>
                     <MenuItem Header="_Audio">
                         <MenuItem x:Name="AudioTrackMenu" Header="Track" SubmenuOpened="AudioTrackMenu_SubmenuOpened">
@@ -227,16 +227,17 @@
                             <Button x:Name="SidebarToggleButton" Content="☰" Style="{StaticResource IconButtonStyle}"
                                     Click="ToggleSidebarButton_Click" ToolTip="Channel list (Ctrl+L)" />
                             <Button x:Name="PreviousButton" Content="⏮" Style="{StaticResource IconButtonStyle}"
-                                    Click="PreviousButton_Click" ToolTip="Previous channel (Down / PgDn)" />
+                                    Click="PreviousButton_Click" ToolTip="Previous channel (Up / PgUp)" />
                             <Button x:Name="PlayPauseButton" Content="⏸" Style="{StaticResource IconButtonStyle}"
                                     Click="PlayPauseButton_Click" ToolTip="Play / Pause (Space)" />
                             <Button x:Name="NextButton" Content="⏭" Style="{StaticResource IconButtonStyle}"
-                                    Click="NextButton_Click" ToolTip="Next channel (Up / PgUp)" />
+                                    Click="NextButton_Click" ToolTip="Next channel (Down / PgDn)" />
                             <Button x:Name="MuteButton" Content="🔊" Style="{StaticResource IconButtonStyle}"
                                     Click="MuteButton_Click" ToolTip="Mute (M)" />
-                            <Slider x:Name="VolumeSlider" Width="110" Minimum="0" Maximum="100" Value="80"
+                            <Slider x:Name="VolumeSlider" Width="110" Minimum="0" Maximum="100" Value="90"
                                     VerticalAlignment="Center" Margin="6,0,0,0"
-                                    ValueChanged="VolumeSlider_ValueChanged" />
+                                    ValueChanged="VolumeSlider_ValueChanged"
+                                    PreviewMouseWheel="VolumeSlider_PreviewMouseWheel" />
                         </StackPanel>
 
                         <TextBlock x:Name="StatusText" Grid.Column="1" Text=""

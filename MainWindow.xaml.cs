@@ -3,6 +3,7 @@ using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Interop;
 using System.Windows.Media.Animation;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
@@ -26,6 +27,42 @@ public partial class MainWindow : Window
         public int X;
         public int Y;
     }
+
+    // ----- Global keyboard hook plumbing (see the "Global keyboard shortcuts" region below for why) -----
+
+    private delegate IntPtr LowLevelKeyboardProc(int nCode, IntPtr wParam, IntPtr lParam);
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct KbdLlHookStruct
+    {
+        public uint VkCode;
+        public uint ScanCode;
+        public uint Flags;
+        public uint Time;
+        public IntPtr ExtraInfo;
+    }
+
+    private const int WhKeyboardLl = 13;
+    private const int WmKeyDown = 0x0100;
+    private const int WmKeyUp = 0x0101;
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr SetWindowsHookEx(int idHook, LowLevelKeyboardProc lpfn, IntPtr hMod, uint dwThreadId);
+
+    [DllImport("user32.dll")]
+    private static extern bool UnhookWindowsHookEx(IntPtr hhk);
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr CallNextHookEx(IntPtr hhk, int nCode, IntPtr wParam, IntPtr lParam);
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr GetForegroundWindow();
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr GetFocus();
+
+    [DllImport("kernel32.dll")]
+    private static extern IntPtr GetModuleHandle(string? lpModuleName);
 
     /// <summary>
     /// Default is the original playlist order (channel-number order); the toggle button only
@@ -61,6 +98,17 @@ public partial class MainWindow : Window
 
     private Channel? _currentChannel;
     private string? _currentStreamUrl;
+
+    // The user's actual mute intent, updated only by ToggleMute(). LibVLC builds a fresh audio
+    // output for every Play(media) call (see PlayStream), and on Windows that new output can pick
+    // up a stale muted/volume state from the OS's per-app audio session memory — independent of
+    // what _mediaPlayer.Mute itself reports, since that getter just reflects whatever the new
+    // native output currently thinks, not what the user asked for. Re-asserting this field once
+    // that output actually exists (MediaPlayer_Playing) is what makes launch — and every channel
+    // switch/reconnect after it — actually match the icon, the same way VolumeSlider.Value already
+    // anchors volume across the same recreation.
+    private bool _desiredMute;
+
     private bool _isFullscreen;
     private WindowState _preFullscreenState;
     private WindowStyle _preFullscreenStyle;
@@ -73,6 +121,17 @@ public partial class MainWindow : Window
     private EqualizerWindow? _equalizerWindow;
     private VideoAdjustmentsWindow? _videoAdjustmentsWindow;
     private ShortcutsWindow? _shortcutsWindow;
+
+    private IntPtr _windowHandle;
+    private LowLevelKeyboardProc? _keyboardHookProc;
+    private IntPtr _keyboardHookHandle;
+
+    // Tracks which physical keys are currently held down, as observed through the low-level
+    // hook (see KeyboardHookCallback) — used to tell a genuine keypress apart from Windows'
+    // auto-repeat resending WM_KEYDOWN while a key is held, since KBDLLHOOKSTRUCT carries no
+    // repeat flag the way a normal WM_KEYDOWN lParam does. WPF's own KeyEventArgs.IsRepeat
+    // covers the same need for the Window_KeyDown path.
+    private readonly HashSet<Key> _hookKeysDown = new();
 
     public MainWindow()
     {
@@ -130,6 +189,9 @@ public partial class MainWindow : Window
         GetCursorPos(out _lastCursorPos);
         _mouseIdleWatchTimer.Start();
         RestartControlsIdleTimer();
+
+        _windowHandle = new WindowInteropHelper(this).Handle;
+        InstallKeyboardHook();
 
         await LoadDataAsync();
     }
@@ -412,8 +474,17 @@ public partial class MainWindow : Window
             return;
         }
 
-        _mediaPlayer.Mute = !_mediaPlayer.Mute;
-        MuteButton.Content = _mediaPlayer.Mute ? "🔇" : "🔊";
+        // Compute the new state once and drive both the player and the icon off that single
+        // local value, rather than mutating _mediaPlayer.Mute and then reading it back — the
+        // read-back relies on LibVLC's native mute call having already taken effect by the next
+        // line, which isn't a guarantee this code should lean on. This is the one place mute
+        // actually flips; MuteButton_Click and the "M" shortcut (both keyboard-hook and
+        // Window_KeyDown paths) all call this same method, so there is exactly one code path that
+        // decides the mute state and the icon that reflects it.
+        bool muted = !_mediaPlayer.Mute;
+        _mediaPlayer.Mute = muted;
+        MuteButton.Content = muted ? "🔇" : "🔊";
+        _desiredMute = muted;
     }
 
     // ----- LibVLC events (fire off the UI thread) -----
@@ -425,6 +496,23 @@ public partial class MainWindow : Window
             _reconnectAttempts = 0;
             _reconnectTimer.Stop();
             HidePlaybackStatus();
+
+            // LibVLC creates a fresh audio output for each Play(media) call, and doesn't reliably
+            // carry over Volume/Mute set before that output exists — the assignment in
+            // InitializePlayer happens before any media is loaded, so on first launch it can be
+            // silently dropped (or overridden by Windows' own remembered per-app session state)
+            // once the real output spins up, leaving playback silent even though the icon looks
+            // right. Reasserting both here, once playback has actually started and the output is
+            // guaranteed to exist, is what makes it stick — for the first channel and for every
+            // channel switch/reconnect after it. _desiredMute (not _mediaPlayer.Mute) is the
+            // source of truth here since the getter can just as easily be reporting whatever the
+            // fresh native output picked up, not what the user last chose.
+            if (_mediaPlayer is not null)
+            {
+                _mediaPlayer.Volume = (int)VolumeSlider.Value;
+                _mediaPlayer.Mute = _desiredMute;
+                MuteButton.Content = _desiredMute ? "🔇" : "🔊";
+            }
         });
     }
 
@@ -698,7 +786,33 @@ public partial class MainWindow : Window
         {
             _mediaPlayer.Mute = false;
             MuteButton.Content = "🔊";
+            _desiredMute = false;
         }
+    }
+
+    /// <summary>
+    /// Mouse wheel over the volume slider adjusts volume — up/forward raises it, down/back lowers
+    /// it (standard Windows scroll convention, e.Delta &gt; 0 for forward), by the same 5-point
+    /// step and clamping Ctrl+Up/Ctrl+Down already use, through the same IncreaseVolume/
+    /// DecreaseVolume methods, so wheel, keyboard, and dragging the slider can never drift out of
+    /// sync. Preview (tunneling) so it fires no matter which visual part of the Slider the pointer
+    /// is over, and e.Handled stops it from bubbling anywhere else (mirrors the web `wheel` +
+    /// preventDefault pattern) — there's no other scroll behavior in the control bar for it to
+    /// conflict with. This is ordinary WPF routed input on a normal control-bar element, so — like
+    /// every other button here — it works identically in windowed and fullscreen mode.
+    /// </summary>
+    private void VolumeSlider_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
+    {
+        if (e.Delta > 0)
+        {
+            IncreaseVolume();
+        }
+        else if (e.Delta < 0)
+        {
+            DecreaseVolume();
+        }
+
+        e.Handled = true;
     }
 
     private void ToggleSidebarButton_Click(object sender, RoutedEventArgs e) => ToggleSidebar();
@@ -726,7 +840,73 @@ public partial class MainWindow : Window
             return;
         }
 
-        switch (Keyboard.Modifiers, e.Key)
+        if (TryHandleShortcut(Keyboard.Modifiers, e.Key, e.IsRepeat))
+        {
+            e.Handled = true;
+        }
+    }
+
+    // ----- Global keyboard shortcuts (works even when the native video surface has focus) -----
+    //
+    // VideoView.Content (see the XAML comments on VideoViewControl) hosts the entire UI — menu
+    // bar, control bar, sidebar, everything — but the actual video frame is rendered by a
+    // separate native child HWND that LibVLCSharp.WPF creates purely for the video pixels.
+    // Clicking directly on the video (not on any of the WPF-rendered buttons/menu/overlays,
+    // which keep working normally) hands real Win32 keyboard focus to that native child window.
+    // libVLC's video panel doesn't forward unhandled keys back into WPF's keyboard-input-sink
+    // chain, so once that happens, Window_KeyDown above — an ordinary WPF routed event — never
+    // fires again for any key, no matter which key or modifier, until focus is somehow moved
+    // back onto a WPF element. This is most likely to bite in fullscreen, where the video fills
+    // almost the entire window, but it can happen in windowed mode too if the video area is
+    // clicked (confirmed live: click video → fullscreen → Space no longer paused playback).
+    //
+    // The fix is a low-level keyboard hook that steps in ONLY for that specific situation: our
+    // window is the OS-foreground app (so this never fires while a totally different app, or one
+    // of our own owned dialogs like Settings/Equalizer, is active — GetForegroundWindow() would
+    // return THEIR hwnd instead), AND real Win32 focus has left our WPF root entirely (GetFocus()
+    // returns our root hwnd for every normal WPF focus state — Button, ListBox, TextBox, or
+    // nothing focused at all, since WPF controls aren't separate HWNDs; it only diverges once the
+    // native video child has stolen focus). Whenever WPF still owns focus, Window_KeyDown already
+    // fires normally, so skipping in that case (rather than always handling here) avoids every
+    // shortcut firing twice.
+
+    private void InstallKeyboardHook()
+    {
+        _keyboardHookProc = KeyboardHookCallback;
+        _keyboardHookHandle = SetWindowsHookEx(WhKeyboardLl, _keyboardHookProc, GetModuleHandle(null), 0);
+    }
+
+    private IntPtr KeyboardHookCallback(int nCode, IntPtr wParam, IntPtr lParam)
+    {
+        if (nCode >= 0 && GetForegroundWindow() == _windowHandle && GetFocus() != _windowHandle)
+        {
+            var hookStruct = Marshal.PtrToStructure<KbdLlHookStruct>(lParam);
+            var key = KeyInterop.KeyFromVirtualKey((int)hookStruct.VkCode);
+
+            if (wParam == (IntPtr)WmKeyUp)
+            {
+                _hookKeysDown.Remove(key);
+            }
+            else if (wParam == (IntPtr)WmKeyDown)
+            {
+                // HashSet.Add returns false when the key was already in the set, i.e. this
+                // WM_KEYDOWN is Windows auto-repeat resending the same held key rather than a
+                // fresh press.
+                bool isRepeat = !_hookKeysDown.Add(key);
+
+                if (TryHandleShortcut(Keyboard.Modifiers, key, isRepeat))
+                {
+                    return (IntPtr)1;
+                }
+            }
+        }
+
+        return CallNextHookEx(_keyboardHookHandle, nCode, wParam, lParam);
+    }
+
+    private bool TryHandleShortcut(ModifierKeys modifiers, Key key, bool isRepeat = false)
+    {
+        switch (modifiers, key)
         {
             // ----- No modifier: primary playback controls (mirrors VLC's own bare-key scheme) -----
             case (ModifierKeys.None, Key.Space):
@@ -746,14 +926,22 @@ public partial class MainWindow : Window
                 break;
             case (ModifierKeys.None, Key.Up):
             case (ModifierKeys.None, Key.PageUp):
-                NextChannel();
+                PreviousChannel();
                 break;
             case (ModifierKeys.None, Key.Down):
             case (ModifierKeys.None, Key.PageDown):
-                PreviousChannel();
+                NextChannel();
                 break;
             case (ModifierKeys.None, Key.M):
-                ToggleMute();
+                // Swallow the key either way (falls through to `return true` below) so a held
+                // "M" doesn't leak into anything else, but only actually flip mute on the
+                // original press — auto-repeat while the key is held would otherwise toggle
+                // mute on/off many times a second, leaving the icon looking out of sync with
+                // whatever the user actually intended.
+                if (!isRepeat)
+                {
+                    ToggleMute();
+                }
                 break;
             case (ModifierKeys.None, Key.F):
             case (ModifierKeys.None, Key.F11):
@@ -824,10 +1012,10 @@ public partial class MainWindow : Window
                 break;
 
             default:
-                return;
+                return false;
         }
 
-        e.Handled = true;
+        return true;
     }
 
     /// <summary>
@@ -950,6 +1138,12 @@ public partial class MainWindow : Window
         _topOverlaysHideTimer.Stop();
         _reconnectTimer.Stop();
         _mouseIdleWatchTimer.Stop();
+
+        if (_keyboardHookHandle != IntPtr.Zero)
+        {
+            UnhookWindowsHookEx(_keyboardHookHandle);
+            _keyboardHookHandle = IntPtr.Zero;
+        }
 
         if (_mediaPlayer is not null)
         {
