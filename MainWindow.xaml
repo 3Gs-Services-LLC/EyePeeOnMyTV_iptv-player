@@ -37,6 +37,21 @@
             </Setter>
         </Style>
 
+        <Style x:Key="FavoriteStarStyle" TargetType="Button" BasedOn="{StaticResource IconButtonStyle}">
+            <Setter Property="Padding" Value="4,2" />
+            <Setter Property="FontSize" Value="14" />
+            <Setter Property="Foreground" Value="{StaticResource AppMutedBrush}" />
+            <Setter Property="Content" Value="☆" />
+            <Setter Property="ToolTip" Value="Add to favorites" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsFavorite}" Value="True">
+                    <Setter Property="Content" Value="★" />
+                    <Setter Property="Foreground" Value="{DynamicResource UserAccentBrush}" />
+                    <Setter Property="ToolTip" Value="Remove from favorites" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
         <Style x:Key="ChannelListItemStyle" TargetType="ListBoxItem">
             <Setter Property="Padding" Value="10,8" />
             <Setter Property="Background" Value="Transparent" />
@@ -63,6 +78,72 @@
     </Window.Resources>
 
     <Grid x:Name="RootGrid" Background="Black">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition x:Name="SidebarColumn" Width="0" MaxWidth="480" />
+            <ColumnDefinition x:Name="SidebarSplitterColumn" Width="0" />
+            <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+
+        <!-- Channel list sidebar (collapsible, drag-resizable via SidebarSplitter). A true Grid
+             column rather than an overlay, so VideoView (and everything hosted in its Content —
+             menu bar, control bar, overlays) actually reflows as this column's width changes,
+             including in fullscreen, instead of just being covered by it. -->
+        <Border x:Name="SidebarPanel" Grid.Column="0" Background="{StaticResource AppSurfaceBrush}"
+                Visibility="Collapsed">
+            <DockPanel>
+                <Border DockPanel.Dock="Top" Padding="14,12" Background="{StaticResource AppSurfaceBrush}">
+                    <DockPanel>
+                        <Button DockPanel.Dock="Right" Content="✕" Style="{StaticResource IconButtonStyle}"
+                                Click="ToggleSidebarButton_Click" />
+                        <Button x:Name="ChannelSortButton" DockPanel.Dock="Right" MinWidth="44"
+                                Style="{StaticResource IconButtonStyle}" FontSize="13"
+                                Click="ChannelSortButton_Click" />
+                        <Button x:Name="FavoritesFilterButton" DockPanel.Dock="Right" MinWidth="32"
+                                Style="{StaticResource IconButtonStyle}" FontSize="14"
+                                Foreground="{StaticResource AppMutedBrush}" Content="☆"
+                                Click="FavoritesFilterButton_Click" ToolTip="Show favorites only" />
+                        <TextBlock Text="Channels" FontSize="16" FontWeight="Bold"
+                                   Foreground="{StaticResource AppForegroundBrush}" VerticalAlignment="Center" />
+                    </DockPanel>
+                </Border>
+                <Grid DockPanel.Dock="Top" Margin="10,10,10,4">
+                    <TextBox x:Name="ChannelFilterBox"
+                             Padding="8,6" Background="{StaticResource AppSurfaceBrush}"
+                             Foreground="{StaticResource AppForegroundBrush}" BorderThickness="0"
+                             CaretBrush="White"
+                             TextChanged="ChannelFilterBox_TextChanged" />
+                    <TextBlock x:Name="ChannelFilterPlaceholder" Text="Search"
+                               Foreground="{DynamicResource UserAccentBrush}" Margin="12,0,0,0"
+                               VerticalAlignment="Center" IsHitTestVisible="False" />
+                </Grid>
+                <ListBox x:Name="ChannelListBox" Margin="6,4,6,6" Background="Transparent" BorderThickness="0"
+                         ItemContainerStyle="{StaticResource ChannelListItemStyle}"
+                         SelectionChanged="ChannelListBox_SelectionChanged"
+                         PreviewKeyDown="ChannelListBox_PreviewKeyDown"
+                         ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                         VirtualizingPanel.ScrollUnit="Pixel">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Button Grid.Column="0" Style="{StaticResource FavoriteStarStyle}"
+                                        VerticalAlignment="Center" Click="FavoriteButton_Click" />
+                                <TextBlock Grid.Column="1" Text="{Binding Name}" TextTrimming="CharacterEllipsis"
+                                           VerticalAlignment="Center" Margin="4,0,0,0" />
+                            </Grid>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </DockPanel>
+        </Border>
+
+        <GridSplitter x:Name="SidebarSplitter" Grid.Column="1" Width="6"
+                      HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
+                      Background="{StaticResource AppBorderBrush}" Visibility="Collapsed"
+                      DragCompleted="SidebarSplitter_DragCompleted" />
 
         <!--
             LibVLCSharp.WPF's VideoView renders through a detached native window, which always
@@ -70,7 +151,7 @@
             LibVLCSharp.WPF's own guidance, all overlay content must live INSIDE VideoView.Content
             instead of as siblings, or it never becomes visible over the video.
         -->
-        <vlc:VideoView x:Name="VideoViewControl">
+        <vlc:VideoView x:Name="VideoViewControl" Grid.Column="2">
             <!--
                 The overlay content above is hosted by VideoView in its own detached native window
                 (see the comment above), so mouse input over it never bubbles to the outer Window's
@@ -249,49 +330,6 @@
                                     Click="FullscreenButton_Click" ToolTip="Fullscreen (F / F11)" />
                         </StackPanel>
                     </Grid>
-                </Border>
-
-                <!-- Channel list sidebar (collapsible) -->
-                <Border x:Name="SidebarPanel" Background="#E01A1A1D" Width="300"
-                        HorizontalAlignment="Left" VerticalAlignment="Stretch"
-                        Visibility="Collapsed">
-                    <DockPanel>
-                        <Border DockPanel.Dock="Top" Padding="14,12" Background="{StaticResource AppSurfaceBrush}">
-                            <DockPanel>
-                                <Button DockPanel.Dock="Right" Content="✕" Style="{StaticResource IconButtonStyle}"
-                                        Click="ToggleSidebarButton_Click" />
-                                <Button x:Name="ChannelSortButton" DockPanel.Dock="Right" MinWidth="44"
-                                        Style="{StaticResource IconButtonStyle}" FontSize="13"
-                                        Click="ChannelSortButton_Click" />
-                                <TextBlock Text="Channels" FontSize="16" FontWeight="Bold"
-                                           Foreground="{StaticResource AppForegroundBrush}" VerticalAlignment="Center" />
-                            </DockPanel>
-                        </Border>
-                        <Grid DockPanel.Dock="Top" Margin="10,10,10,4">
-                            <TextBox x:Name="ChannelFilterBox"
-                                     Padding="8,6" Background="{StaticResource AppSurfaceBrush}"
-                                     Foreground="{StaticResource AppForegroundBrush}" BorderThickness="0"
-                                     CaretBrush="White"
-                                     TextChanged="ChannelFilterBox_TextChanged" />
-                            <TextBlock x:Name="ChannelFilterPlaceholder" Text="Search"
-                                       Foreground="#39FF14" Margin="12,0,0,0"
-                                       VerticalAlignment="Center" IsHitTestVisible="False" />
-                        </Grid>
-                        <ListBox x:Name="ChannelListBox" Margin="6,4,6,6" Background="Transparent" BorderThickness="0"
-                                 ItemContainerStyle="{StaticResource ChannelListItemStyle}"
-                                 SelectionChanged="ChannelListBox_SelectionChanged"
-                                 PreviewKeyDown="ChannelListBox_PreviewKeyDown"
-                                 ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                                 VirtualizingPanel.ScrollUnit="Pixel">
-                            <ListBox.ItemTemplate>
-                                <DataTemplate>
-                                    <StackPanel Orientation="Horizontal">
-                                        <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
-                                    </StackPanel>
-                                </DataTemplate>
-                            </ListBox.ItemTemplate>
-                        </ListBox>
-                    </DockPanel>
                 </Border>
 
                 <!-- Startup loading state (topmost until data is loaded) -->

@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Media;
 using EyePeeOnMyTV.Models;
 using EyePeeOnMyTV.Services;
 
@@ -8,6 +9,8 @@ namespace EyePeeOnMyTV.Dialogs;
 
 public partial class SettingsWindow : Window
 {
+    private Color _accentColor;
+
     public SettingsWindow(AppSettings currentSettings)
     {
         InitializeComponent();
@@ -17,6 +20,8 @@ public partial class SettingsWindow : Window
         XtreamUsernameBox.Text = currentSettings.Xtream.Username;
         XtreamPasswordBox.Password = currentSettings.Xtream.Password;
         XtreamPortBox.Text = currentSettings.Xtream.Port;
+
+        SetAccentColor(ParseAccentColor(currentSettings.AccentColor));
 
         foreach (var epgUrl in currentSettings.EpgUrls)
         {
@@ -48,6 +53,39 @@ public partial class SettingsWindow : Window
         var useXtream = ReferenceEquals(sender, XtreamModeRadio);
         M3uPanel.Visibility = useXtream ? Visibility.Collapsed : Visibility.Visible;
         XtreamPanel.Visibility = useXtream ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private void AccentColorSwatch_Click(object sender, RoutedEventArgs e)
+    {
+        using var dialog = new System.Windows.Forms.ColorDialog
+        {
+            Color = System.Drawing.Color.FromArgb(_accentColor.R, _accentColor.G, _accentColor.B),
+            FullOpen = true,
+        };
+
+        if (dialog.ShowDialog() == System.Windows.Forms.DialogResult.OK)
+        {
+            SetAccentColor(Color.FromRgb(dialog.Color.R, dialog.Color.G, dialog.Color.B));
+        }
+    }
+
+    private void SetAccentColor(Color color)
+    {
+        _accentColor = color;
+        AccentColorSwatch.Background = new SolidColorBrush(color);
+        AccentColorHexText.Text = $"#{color.R:X2}{color.G:X2}{color.B:X2}";
+    }
+
+    private static Color ParseAccentColor(string hex)
+    {
+        try
+        {
+            return (Color)ColorConverter.ConvertFromString(hex);
+        }
+        catch
+        {
+            return (Color)ColorConverter.ConvertFromString("#39FF14");
+        }
     }
 
     private void AddEpgRowButton_Click(object sender, RoutedEventArgs e) => AddEpgRow(string.Empty);
@@ -89,6 +127,7 @@ public partial class SettingsWindow : Window
                 Port = XtreamPortBox.Text.Trim(),
             },
             EpgUrls = CollectEpgUrls(),
+            AccentColor = $"#{_accentColor.R:X2}{_accentColor.G:X2}{_accentColor.B:X2}",
         };
 
         var error = Validate(settings);

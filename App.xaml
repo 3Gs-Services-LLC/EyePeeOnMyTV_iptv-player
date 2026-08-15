@@ -11,6 +11,15 @@
         <SolidColorBrush x:Key="AppMutedBrush" Color="#9A9AA2" />
 
         <!--
+            User-configurable accent color (Settings > Accent Color). Distinct from AppAccentBrush
+            above, which is the app's own fixed blue used for buttons. This one starts at Search's
+            original hardcoded green and is swapped for a new SolidColorBrush at runtime (see
+            MainWindow.ApplyAccentColor) whenever settings load or the user picks a new color —
+            consumed via DynamicResource (not StaticResource) so it updates live.
+        -->
+        <SolidColorBrush x:Key="UserAccentBrush" Color="#39FF14" />
+
+        <!--
             WPF's default Menu/MenuItem theme (and standard dialog chrome like GroupBox/ComboBox)
             pulls its colors from these SystemColors resource keys. Overriding them app-wide is far
             less code than re-templating every Menu/MenuItem/Popup by hand, and keeps the menu bar

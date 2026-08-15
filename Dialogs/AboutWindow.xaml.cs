@@ -10,7 +10,8 @@ public partial class AboutWindow : Window
     {
         InitializeComponent();
 
-        var appVersion = Assembly.GetExecutingAssembly().GetName().Version;
+        var appVersion = Assembly.GetExecutingAssembly()
+            .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
         VersionText.Text = $"Version {appVersion} — libVLC {libVlc.Version}";
     }
 

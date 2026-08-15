@@ -95,6 +95,7 @@ public partial class MainWindow : Window
     private readonly ObservableCollection<Channel> _visibleChannels = new();
     private Dictionary<string, List<EpgProgramme>> _epg = new(StringComparer.OrdinalIgnoreCase);
     private ChannelSortOrder _channelSortOrder = ChannelSortOrder.Default;
+    private bool _showFavoritesOnly;
 
     private Channel? _currentChannel;
     private string? _currentStreamUrl;
@@ -137,6 +138,8 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
 
+        ApplyAccentColor();
+
         ChannelListBox.ItemsSource = _visibleChannels;
 
         _epgRefreshTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(60) };
@@ -178,6 +181,7 @@ public partial class MainWindow : Window
         };
 
         UpdateChannelSortButton();
+        UpdateFavoritesFilterButton();
 
         Loaded += MainWindow_Loaded;
     }
@@ -225,6 +229,7 @@ public partial class MainWindow : Window
             var epgTask = FetchEpgSafeAsync();
 
             _allChannels = await channelsTask;
+            ApplyFavoriteState(_allChannels);
 
             LoadingStatusText.Text = "Fetching guide…";
             _epg = await epgTask;
@@ -271,6 +276,12 @@ public partial class MainWindow : Window
         _visibleChannels.Clear();
 
         IEnumerable<Channel> source = _allChannels;
+
+        if (_showFavoritesOnly)
+        {
+            source = source.Where(c => c.IsFavorite);
+        }
+
         if (!string.IsNullOrWhiteSpace(filter))
         {
             source = source.Where(c =>
@@ -291,6 +302,74 @@ public partial class MainWindow : Window
         {
             _visibleChannels.Add(channel);
         }
+    }
+
+    // ----- Favorites -----
+
+    /// <summary>
+    /// Channel objects are rebuilt from scratch by the M3U/Xtream parser on every fetch, so
+    /// favorite status can't be carried on the object between fetches — it's looked up here by a
+    /// stable per-channel identifier and re-applied to the fresh objects instead.
+    /// </summary>
+    private static string GetFavoriteKey(Channel channel) =>
+        !string.IsNullOrEmpty(channel.TvgId) ? channel.TvgId : channel.StreamUrl;
+
+    private void ApplyFavoriteState(List<Channel> channels)
+    {
+        foreach (var channel in channels)
+        {
+            channel.IsFavorite = _appSettings.FavoriteChannelIds.Contains(GetFavoriteKey(channel));
+        }
+    }
+
+    private void FavoriteButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement element || element.DataContext is not Channel channel)
+        {
+            return;
+        }
+
+        channel.IsFavorite = !channel.IsFavorite;
+
+        var key = GetFavoriteKey(channel);
+        if (channel.IsFavorite)
+        {
+            if (!_appSettings.FavoriteChannelIds.Contains(key))
+            {
+                _appSettings.FavoriteChannelIds.Add(key);
+            }
+        }
+        else
+        {
+            _appSettings.FavoriteChannelIds.Remove(key);
+        }
+
+        SettingsService.Save(_appSettings);
+
+        // Un-favoriting a channel while the favorites-only filter is active should drop it from
+        // the visible list immediately, same as the search box already does for a text filter.
+        if (_showFavoritesOnly)
+        {
+            RefreshVisibleChannels(ChannelFilterBox.Text);
+        }
+    }
+
+    private void FavoritesFilterButton_Click(object sender, RoutedEventArgs e)
+    {
+        _showFavoritesOnly = !_showFavoritesOnly;
+        UpdateFavoritesFilterButton();
+        RefreshVisibleChannels(ChannelFilterBox.Text);
+    }
+
+    private void UpdateFavoritesFilterButton()
+    {
+        FavoritesFilterButton.Content = _showFavoritesOnly ? "★" : "☆";
+        FavoritesFilterButton.Foreground = _showFavoritesOnly
+            ? (System.Windows.Media.Brush)Application.Current.Resources["UserAccentBrush"]
+            : (System.Windows.Media.Brush)Application.Current.Resources["AppMutedBrush"];
+        FavoritesFilterButton.ToolTip = _showFavoritesOnly
+            ? "Showing favorites only — click to show all channels"
+            : "Show favorites only";
     }
 
     private void ChannelFilterBox_TextChanged(object sender, System.Windows.Controls.TextChangedEventArgs e)
@@ -815,13 +894,41 @@ public partial class MainWindow : Window
         e.Handled = true;
     }
 
+    // Below this, the channel list would clip channel names and its own header controls.
+    private const double MinSidebarWidth = 220;
+
     private void ToggleSidebarButton_Click(object sender, RoutedEventArgs e) => ToggleSidebar();
 
     private void ToggleSidebar()
     {
-        SidebarPanel.Visibility = SidebarPanel.Visibility == Visibility.Visible
-            ? Visibility.Collapsed
-            : Visibility.Visible;
+        bool opening = SidebarPanel.Visibility != Visibility.Visible;
+
+        SidebarPanel.Visibility = opening ? Visibility.Visible : Visibility.Collapsed;
+        SidebarSplitter.Visibility = SidebarPanel.Visibility;
+
+        if (opening)
+        {
+            // MinWidth has to come back before Width, or a persisted value below it would just
+            // get silently clamped up without _appSettings.SidebarWidth ever reflecting that.
+            SidebarColumn.MinWidth = MinSidebarWidth;
+            SidebarColumn.Width = new GridLength(
+                Math.Clamp(_appSettings.SidebarWidth, MinSidebarWidth, SidebarColumn.MaxWidth));
+            SidebarSplitterColumn.Width = new GridLength(SidebarSplitter.Width);
+        }
+        else
+        {
+            // MinWidth has to drop to 0 too — otherwise it floors the column and Width=0 below
+            // has no effect, leaving a MinSidebarWidth-wide gap where the "closed" sidebar was.
+            SidebarColumn.MinWidth = 0;
+            SidebarColumn.Width = new GridLength(0);
+            SidebarSplitterColumn.Width = new GridLength(0);
+        }
+    }
+
+    private void SidebarSplitter_DragCompleted(object sender, System.Windows.Controls.Primitives.DragCompletedEventArgs e)
+    {
+        _appSettings.SidebarWidth = SidebarColumn.ActualWidth;
+        SettingsService.Save(_appSettings);
     }
 
     /// <summary>
@@ -1180,7 +1287,32 @@ public partial class MainWindow : Window
             // them here and immediately re-fetch the playlist/EPG so the change takes effect
             // right away instead of requiring an app restart.
             _appSettings = SettingsService.Load();
+            ApplyAccentColor();
             await LoadDataAsync();
+        }
+    }
+
+    /// <summary>
+    /// Swaps the app-wide UserAccentBrush resource (declared in App.xaml) for a new brush built
+    /// from _appSettings.AccentColor. Replacing the dictionary entry — rather than mutating the
+    /// existing brush's Color — is what makes every DynamicResource consumer (Search today,
+    /// others later) pick up the change live, since XAML-declared brushes are frozen and can't be
+    /// mutated in place.
+    /// </summary>
+    private void ApplyAccentColor()
+    {
+        Application.Current.Resources["UserAccentBrush"] = new System.Windows.Media.SolidColorBrush(ParseAccentColor(_appSettings.AccentColor));
+    }
+
+    private static System.Windows.Media.Color ParseAccentColor(string hex)
+    {
+        try
+        {
+            return (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString(hex);
+        }
+        catch
+        {
+            return (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#39FF14");
         }
     }
 

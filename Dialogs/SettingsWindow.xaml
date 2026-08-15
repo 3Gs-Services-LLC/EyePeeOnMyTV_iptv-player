@@ -96,6 +96,17 @@
 
             <StackPanel x:Name="EpgRowsPanel" />
 
+            <!-- ===== Accent Color ===== -->
+            <TextBlock Text="Accent Color" Style="{StaticResource SectionHeaderStyle}" />
+            <StackPanel Orientation="Horizontal">
+                <Button x:Name="AccentColorSwatch" Width="32" Height="32" Padding="0"
+                        BorderBrush="{StaticResource AppBorderBrush}" BorderThickness="1"
+                        Cursor="Hand" Click="AccentColorSwatch_Click"
+                        ToolTip="Click to choose a new accent color" />
+                <TextBlock x:Name="AccentColorHexText" VerticalAlignment="Center" Margin="10,0,0,0"
+                           Foreground="{StaticResource AppMutedBrush}" />
+            </StackPanel>
+
             <!-- ===== Validation / actions ===== -->
             <TextBlock x:Name="ErrorText" Foreground="#FF6B6B" TextWrapping="Wrap" Margin="0,16,0,0"
                        Visibility="Collapsed" />

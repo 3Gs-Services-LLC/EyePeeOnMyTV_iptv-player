@@ -6,6 +6,9 @@
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <RuntimeIdentifiers>win-x64</RuntimeIdentifiers>
     <UseWPF>true</UseWPF>
+    <!-- Pulls in System.Windows.Forms.ColorDialog — WPF has no native color picker of its own,
+         and this is the standard, well-tested one used for exactly this purpose in WPF apps. -->
+    <UseWindowsForms>true</UseWindowsForms>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <AssemblyName>EyePeeOnMyTV</AssemblyName>
@@ -24,6 +27,9 @@
 
     <ApplicationIcon>favicon.ico</ApplicationIcon>
     <StartupObject>EyePeeOnMyTV.App</StartupObject>
+
+    <!-- Keep InformationalVersion as the plain major.minor.MMDDYY.revision string (no +gitsha suffix). -->
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
   </PropertyGroup>
 
   <ItemGroup>
@@ -35,5 +41,42 @@
   <ItemGroup>
     <Resource Include="EyePeeOnMyTV About Us Logo.png" />
   </ItemGroup>
+
+  <!--
+    UseWindowsForms implicitly global-usings System.Drawing and System.Windows.Forms, both of
+    which collide project-wide with WPF's own same-named types (Application, Color, KeyEventArgs,
+    MouseEventArgs, ...). Removed here; the few WinForms/System.Drawing types actually used
+    (ColorDialog, for the accent color picker) are referenced with their full names instead.
+  -->
+  <ItemGroup>
+    <Using Remove="System.Drawing" />
+    <Using Remove="System.Windows.Forms" />
+  </ItemGroup>
+
+  <!--
+    Automatic build versioning: major.minor.MMDDYY.revision.
+    scripts/update-version.ps1 reads version.json (major/minor are developer-controlled and
+    never touched by the script), computes today's date and the next revision for that date,
+    persists it back to version.json, and prints the resulting full version string, which is
+    captured here and stamped into InformationalVersion (an unrestricted string, unlike
+    AssemblyVersion/FileVersion whose numeric parts are capped at 65535 and can't hold MMDDYY).
+  -->
+  <Target Name="ComputeBuildVersion" BeforeTargets="GetAssemblyVersion">
+    <Exec Command="powershell.exe -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)\scripts\update-version.ps1&quot; -ProjectDir &quot;$(MSBuildProjectDirectory)&quot;"
+          ConsoleToMSBuild="true"
+          StandardOutputImportance="low">
+      <Output TaskParameter="ConsoleOutput" ItemName="_ComputedVersionOutput" />
+    </Exec>
+    <PropertyGroup>
+      <FullBuildVersion>@(_ComputedVersionOutput)</FullBuildVersion>
+      <_VersionMajor>$(FullBuildVersion.Split('.')[0])</_VersionMajor>
+      <_VersionMinor>$(FullBuildVersion.Split('.')[1])</_VersionMinor>
+      <AssemblyVersion>$(_VersionMajor).$(_VersionMinor).0.0</AssemblyVersion>
+      <FileVersion>$(_VersionMajor).$(_VersionMinor).0.0</FileVersion>
+      <InformationalVersion>$(FullBuildVersion)</InformationalVersion>
+      <Version>$(FullBuildVersion)</Version>
+    </PropertyGroup>
+    <Message Importance="high" Text="EyePeeOnMyTV build version: $(FullBuildVersion)" />
+  </Target>
 
 </Project>
