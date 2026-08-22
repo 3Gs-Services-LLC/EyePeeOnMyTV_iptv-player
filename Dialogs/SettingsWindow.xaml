@@ -145,6 +145,19 @@
                               ToolTip="Resume the last channel you were watching when the app starts" />
             </Grid>
 
+            <Grid Margin="0,12,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Text="Always on Top" VerticalAlignment="Center"
+                           Foreground="{StaticResource AppForegroundBrush}" />
+                <ToggleButton x:Name="AlwaysOnTopToggle" Grid.Column="1"
+                              Style="{StaticResource ToggleSwitchStyle}" VerticalAlignment="Center"
+                              Click="AlwaysOnTopToggle_Click"
+                              ToolTip="Keep the app window above all other windows" />
+            </Grid>
+
             <!-- ===== Validation / actions ===== -->
             <TextBlock x:Name="ErrorText" Foreground="#FF6B6B" TextWrapping="Wrap" Margin="0,16,0,0"
                        Visibility="Collapsed" />

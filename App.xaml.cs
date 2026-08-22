@@ -2,7 +2,6 @@ using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Windows;
-using LibVLCSharp.Shared;
 
 namespace EyePeeOnMyTV;
 
@@ -38,7 +37,15 @@ public partial class App : Application
             return;
         }
 
-        Core.Initialize();
+        // Deliberately NOT calling Core.Initialize() (LibVLCSharp's native libvlc load) here.
+        // base.OnStartup above is what creates and Show()s MainWindow via StartupUri, but the
+        // dispatcher's message loop doesn't actually start pumping — and so doesn't paint
+        // anything — until Application.Run() picks up after OnStartup returns. Core.Initialize()
+        // is a synchronous native-library load (worse in a single-file publish, which has to
+        // self-extract libvlc's plugin set to a temp directory), so running it here blocked the
+        // dispatcher for that entire duration with the window already shown but nothing painted
+        // yet — exactly the white/blank-frame startup bug. It now runs from MainWindow_Loaded,
+        // after yielding once so the window's first paint (boot logo + progress bar) happens first.
     }
 
     protected override void OnExit(ExitEventArgs e)

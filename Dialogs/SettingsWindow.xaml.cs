@@ -16,6 +16,11 @@ public partial class SettingsWindow : Window
     // then cancelled doesn't linger applied app-wide.
     private readonly Color _originalAccentColor;
 
+    // Same revert-on-cancel treatment as _originalAccentColor, for the same reason: Always on Top
+    // applies live to Owner.Topmost on every click (see AlwaysOnTopToggle_Click) rather than
+    // waiting for Save, so cancelling needs to put the window back the way it found it.
+    private readonly bool _originalAlwaysOnTop;
+
     // Settings this dialog never exposes its own controls for (favorites, sidebar width, last
     // viewed channel — all owned/updated elsewhere in MainWindow). SaveButton_Click builds a
     // brand-new AppSettings from scratch, so these have to be carried forward explicitly or Save
@@ -28,6 +33,7 @@ public partial class SettingsWindow : Window
 
         _originalSettings = currentSettings;
         _originalAccentColor = ParseAccentColor(currentSettings.AccentColor);
+        _originalAlwaysOnTop = currentSettings.AlwaysOnTop;
 
         M3uUrlBox.Text = currentSettings.M3uUrl;
         XtreamServerBox.Text = currentSettings.Xtream.ServerUrl;
@@ -37,6 +43,7 @@ public partial class SettingsWindow : Window
 
         SetAccentColor(ParseAccentColor(currentSettings.AccentColor));
         PlayLastViewedToggle.IsChecked = currentSettings.PlayLastViewedChannelOnStartup;
+        AlwaysOnTopToggle.IsChecked = currentSettings.AlwaysOnTop;
 
         foreach (var epgUrl in currentSettings.EpgUrls)
         {
@@ -102,6 +109,22 @@ public partial class SettingsWindow : Window
         Application.Current.Resources["UserAccentBrush"] = new SolidColorBrush(color);
     }
 
+    /// <summary>
+    /// Applies live to Owner (MainWindow) the instant it's clicked, same as SetAccentColor does
+    /// for the color picker — not deferred until Save — so the window's actual layering changes
+    /// while Settings is still open. WPF already flips AlwaysOnTopToggle.IsChecked before Click
+    /// fires (it's a ToggleButton), so reading it here reflects the new state. Window_Closing
+    /// reverts this to _originalAlwaysOnTop if the dialog ends up cancelled rather than saved, and
+    /// SaveButton_Click is what actually persists it.
+    /// </summary>
+    private void AlwaysOnTopToggle_Click(object sender, RoutedEventArgs e)
+    {
+        if (Owner is Window owner)
+        {
+            owner.Topmost = AlwaysOnTopToggle.IsChecked == true;
+        }
+    }
+
     private static Color ParseAccentColor(string hex)
     {
         try
@@ -155,6 +178,7 @@ public partial class SettingsWindow : Window
             EpgUrls = CollectEpgUrls(),
             AccentColor = $"#{_accentColor.R:X2}{_accentColor.G:X2}{_accentColor.B:X2}",
             PlayLastViewedChannelOnStartup = PlayLastViewedToggle.IsChecked == true,
+            AlwaysOnTop = AlwaysOnTopToggle.IsChecked == true,
             SidebarWidth = _originalSettings.SidebarWidth,
             FavoriteChannelIds = _originalSettings.FavoriteChannelIds,
             LastViewedChannelId = _originalSettings.LastViewedChannelId,
@@ -260,16 +284,22 @@ public partial class SettingsWindow : Window
     /// <summary>
     /// Catches every way this dialog can end without saving — Cancel, Escape, or the title bar's
     /// own close button (which sets DialogResult to null, not false, and doesn't go through
-    /// CancelButton_Click/Window_KeyDown at all) — in one place, and reverts the live accent-color
-    /// preview SetAccentColor applies on every pick back to whatever was active when the dialog
-    /// opened. Save (DialogResult == true) leaves it as-is, since that's already the color that
-    /// was just persisted.
+    /// CancelButton_Click/Window_KeyDown at all) — in one place, and reverts everything that
+    /// applies itself live while the dialog is open (the accent-color preview from SetAccentColor,
+    /// the Topmost state from AlwaysOnTopToggle_Click) back to what was active when the dialog
+    /// opened. Save (DialogResult == true) leaves both as-is, since those are already the values
+    /// that were just persisted.
     /// </summary>
     private void Window_Closing(object? sender, System.ComponentModel.CancelEventArgs e)
     {
         if (DialogResult != true)
         {
             Application.Current.Resources["UserAccentBrush"] = new SolidColorBrush(_originalAccentColor);
+
+            if (Owner is Window owner)
+            {
+                owner.Topmost = _originalAlwaysOnTop;
+            }
         }
     }
 }

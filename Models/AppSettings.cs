@@ -49,4 +49,10 @@ public sealed class AppSettings
     // MainWindow.SaveVolumeAndMute), same reasoning as LastViewedChannelId above.
     public int Volume { get; set; } = 90;
     public bool Muted { get; set; }
+
+    // Matches the Video menu / Ctrl+T checkable item's original unpersisted default (unchecked).
+    // Re-applied on every launch (see MainWindow.RestoreAlwaysOnTop) and kept in sync across all
+    // three ways to toggle it — this Settings switch, the Video menu item, and Ctrl+T — by routing
+    // every one of them through MainWindow.SetAlwaysOnTop.
+    public bool AlwaysOnTop { get; set; }
 }

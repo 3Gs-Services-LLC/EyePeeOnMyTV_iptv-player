@@ -40,6 +40,7 @@
 
   <ItemGroup>
     <Resource Include="EyePeeOnMyTV About Us Logo.png" />
+    <Resource Include="EyePeeOnMyTV Boot Logo.png" />
   </ItemGroup>
 
   <!--

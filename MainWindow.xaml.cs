@@ -139,6 +139,7 @@ public partial class MainWindow : Window
         InitializeComponent();
 
         ApplyAccentColor();
+        RestoreAlwaysOnTop();
 
         ChannelListBox.ItemsSource = _visibleChannels;
 
@@ -193,6 +194,14 @@ public partial class MainWindow : Window
         // of VolumeSlider's XAML design-time default, so there's no audible blip at launch.
         RestoreVolumeAndMute();
 
+        // Yield back to the dispatcher at a priority below Render/Loaded before doing any heavy
+        // synchronous work, so WPF actually paints this window — the boot logo and progress bar
+        // are already in the visual tree by this point via InitializeComponent — before
+        // InitializePlayer's native libVLC load (see the comment there) gets a chance to block the
+        // UI thread. Without this, the window is already Show()n but nothing's been painted yet,
+        // so Windows shows a blank/white frame for however long that load takes.
+        await Dispatcher.Yield(DispatcherPriority.Background);
+
         InitializePlayer();
 
         GetCursorPos(out _lastCursorPos);
@@ -207,6 +216,13 @@ public partial class MainWindow : Window
 
     private void InitializePlayer()
     {
+        // Locates/loads the native libvlc library (worse than a normal build, in a single-file
+        // publish, which has to self-extract libvlc's plugin set to a temp directory first) — was
+        // previously called from App.OnStartup, synchronously blocking the UI thread before this
+        // window had painted anything at all. Called here instead, after MainWindow_Loaded yields
+        // once, so the boot logo/progress bar are already on screen before this runs.
+        Core.Initialize();
+
         _libVlc = new LibVLC(enableDebugLogs: false);
         _mediaPlayer = new MediaPlayer(_libVlc)
         {
@@ -1399,6 +1415,13 @@ public partial class MainWindow : Window
             // actually feed those fetches changed; see ReloadIfIptvOrEpgChangedAsync.
             _appSettings = SettingsService.Load();
             ApplyAccentColor();
+
+            // Topmost itself is already correct — SettingsWindow applied it live via Owner while
+            // the dialog was open, and that's exactly the value just saved — this just brings the
+            // Video menu's checkmark back in sync now that the dialog (and its own independent
+            // live-preview path) is done.
+            AlwaysOnTopMenuItem.IsChecked = _appSettings.AlwaysOnTop;
+
             await ReloadIfIptvOrEpgChangedAsync(previousSettings, _appSettings);
         }
     }
@@ -1653,15 +1676,39 @@ public partial class MainWindow : Window
     private void Video_AlwaysOnTop_Click(object sender, RoutedEventArgs e)
     {
         // WPF already flips AlwaysOnTopMenuItem.IsChecked before Click fires here (it's a
-        // checkable MenuItem) — just sync Topmost to match. The Ctrl+T shortcut goes through
-        // ToggleAlwaysOnTop() instead, which flips IsChecked itself since no click occurred.
-        Topmost = AlwaysOnTopMenuItem.IsChecked;
+        // checkable MenuItem) — read that as the new target state. The Ctrl+T shortcut goes
+        // through ToggleAlwaysOnTop() instead, which computes the flip itself since no click
+        // (and so no automatic IsChecked flip) occurred.
+        SetAlwaysOnTop(AlwaysOnTopMenuItem.IsChecked);
     }
 
-    private void ToggleAlwaysOnTop()
+    private void ToggleAlwaysOnTop() => SetAlwaysOnTop(!Topmost);
+
+    /// <summary>
+    /// The one place Always on Top actually changes and persists — reached from the Video menu
+    /// item, the Ctrl+T shortcut, and (via SettingsService.Save in SaveButton_Click) the Settings
+    /// toggle, which instead applies live through Owner.Topmost while the dialog is still open and
+    /// only reaches here once Saved. Keeping all three entry points routed through one method is
+    /// what keeps the menu checkmark, the window's actual layering, and the persisted setting from
+    /// ever drifting out of sync with each other.
+    /// </summary>
+    private void SetAlwaysOnTop(bool alwaysOnTop)
     {
-        AlwaysOnTopMenuItem.IsChecked = !AlwaysOnTopMenuItem.IsChecked;
-        Topmost = AlwaysOnTopMenuItem.IsChecked;
+        Topmost = alwaysOnTop;
+        AlwaysOnTopMenuItem.IsChecked = alwaysOnTop;
+        _appSettings.AlwaysOnTop = alwaysOnTop;
+        SettingsService.Save(_appSettings);
+    }
+
+    /// <summary>
+    /// Applies the persisted Always-on-Top state at launch — deliberately not routed through
+    /// SetAlwaysOnTop, since that also re-saves settings.json on every call and there's nothing to
+    /// persist here that isn't already on disk (this is a restore, not a change).
+    /// </summary>
+    private void RestoreAlwaysOnTop()
+    {
+        Topmost = _appSettings.AlwaysOnTop;
+        AlwaysOnTopMenuItem.IsChecked = _appSettings.AlwaysOnTop;
     }
 
     private void Video_AspectRatio_Click(object sender, RoutedEventArgs e)

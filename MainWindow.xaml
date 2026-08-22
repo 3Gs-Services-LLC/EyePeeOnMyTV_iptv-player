@@ -332,15 +332,29 @@
                     </Grid>
                 </Border>
 
-                <!-- Startup loading state (topmost until data is loaded) -->
+                <!-- Startup loading state (topmost until data is loaded). Also reappears briefly
+                     for a Settings-triggered playlist/EPG reload (see ReloadIfIptvOrEpgChangedAsync)
+                     — already fully opaque either way, so filling it edge-to-edge with the logo
+                     isn't any more visually disruptive for that case than the old small-centered
+                     version was. -->
                 <Grid x:Name="LoadingOverlay" Background="{StaticResource AppBackgroundBrush}" Visibility="Visible">
-                    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
-                        <TextBlock Text="EyePeeOnMyTV" FontSize="28" FontWeight="Bold"
-                                   Foreground="{StaticResource AppForegroundBrush}" HorizontalAlignment="Center" Margin="0,0,0,16" />
-                        <ProgressBar x:Name="LoadingProgressBar" IsIndeterminate="True" Width="220" Height="4" />
-                        <TextBlock x:Name="LoadingStatusText" Text="Loading channels and guide…" Margin="0,12,0,0"
-                                   Foreground="{StaticResource AppMutedBrush}" HorizontalAlignment="Center" />
-                    </StackPanel>
+                    <!-- Uniform ("contain"), not UniformToFill ("cover"): the wordmark is baked
+                         into the artwork itself, so cropping to fill edge-to-edge risks cutting
+                         off part of it — Uniform always shows the whole logo, letterboxed on
+                         whichever axis the window's aspect ratio doesn't match. -->
+                    <Image Source="/EyePeeOnMyTV Boot Logo.png" Stretch="Uniform" />
+
+                    <!-- Progress bar + status overlay on the logo's bottom edge, same semi-
+                         transparent treatment as PlaybackStatusOverlay above, for legibility
+                         against the artwork underneath instead of floating in empty space below
+                         a now much bigger logo. -->
+                    <Border Background="#C0000000" VerticalAlignment="Bottom" Padding="0,14">
+                        <StackPanel HorizontalAlignment="Center">
+                            <ProgressBar x:Name="LoadingProgressBar" IsIndeterminate="True" Width="220" Height="4" />
+                            <TextBlock x:Name="LoadingStatusText" Text="Loading channels and guide…" Margin="0,12,0,0"
+                                       Foreground="{StaticResource AppMutedBrush}" HorizontalAlignment="Center" />
+                        </StackPanel>
+                    </Border>
                 </Grid>
             </Grid>
             </DockPanel>
