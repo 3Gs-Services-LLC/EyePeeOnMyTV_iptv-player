@@ -11,9 +11,23 @@ public partial class SettingsWindow : Window
 {
     private Color _accentColor;
 
+    // The color active when this dialog opened — restored to Application.Current.Resources if the
+    // dialog is dismissed without saving (see Window_Closing), so a color picked mid-session but
+    // then cancelled doesn't linger applied app-wide.
+    private readonly Color _originalAccentColor;
+
+    // Settings this dialog never exposes its own controls for (favorites, sidebar width, last
+    // viewed channel — all owned/updated elsewhere in MainWindow). SaveButton_Click builds a
+    // brand-new AppSettings from scratch, so these have to be carried forward explicitly or Save
+    // would silently reset them to their defaults.
+    private readonly AppSettings _originalSettings;
+
     public SettingsWindow(AppSettings currentSettings)
     {
         InitializeComponent();
+
+        _originalSettings = currentSettings;
+        _originalAccentColor = ParseAccentColor(currentSettings.AccentColor);
 
         M3uUrlBox.Text = currentSettings.M3uUrl;
         XtreamServerBox.Text = currentSettings.Xtream.ServerUrl;
@@ -22,6 +36,7 @@ public partial class SettingsWindow : Window
         XtreamPortBox.Text = currentSettings.Xtream.Port;
 
         SetAccentColor(ParseAccentColor(currentSettings.AccentColor));
+        PlayLastViewedToggle.IsChecked = currentSettings.PlayLastViewedChannelOnStartup;
 
         foreach (var epgUrl in currentSettings.EpgUrls)
         {
@@ -69,11 +84,22 @@ public partial class SettingsWindow : Window
         }
     }
 
+    /// <summary>
+    /// Updates this dialog's own swatch/hex preview AND applies the color live to the shared
+    /// Application.Current.Resources["UserAccentBrush"] resource immediately — not just after
+    /// Save. Every {DynamicResource UserAccentBrush} consumer (the favorite star and
+    /// favorites-filter button in MainWindow, the Search placeholder, and this dialog's own
+    /// startup-resume toggle) re-resolves that resource the instant it changes, so this is what
+    /// makes all of them — including the toggle, previously the one holdout — update in the same
+    /// instant the user picks a color, with Settings still open, instead of only once the dialog
+    /// closes. Window_Closing reverts this if the dialog ends up cancelled rather than saved.
+    /// </summary>
     private void SetAccentColor(Color color)
     {
         _accentColor = color;
         AccentColorSwatch.Background = new SolidColorBrush(color);
         AccentColorHexText.Text = $"#{color.R:X2}{color.G:X2}{color.B:X2}";
+        Application.Current.Resources["UserAccentBrush"] = new SolidColorBrush(color);
     }
 
     private static Color ParseAccentColor(string hex)
@@ -128,6 +154,10 @@ public partial class SettingsWindow : Window
             },
             EpgUrls = CollectEpgUrls(),
             AccentColor = $"#{_accentColor.R:X2}{_accentColor.G:X2}{_accentColor.B:X2}",
+            PlayLastViewedChannelOnStartup = PlayLastViewedToggle.IsChecked == true,
+            SidebarWidth = _originalSettings.SidebarWidth,
+            FavoriteChannelIds = _originalSettings.FavoriteChannelIds,
+            LastViewedChannelId = _originalSettings.LastViewedChannelId,
         };
 
         var error = Validate(settings);
@@ -224,6 +254,22 @@ public partial class SettingsWindow : Window
         if (e.Key == Key.Escape)
         {
             DialogResult = false;
+        }
+    }
+
+    /// <summary>
+    /// Catches every way this dialog can end without saving — Cancel, Escape, or the title bar's
+    /// own close button (which sets DialogResult to null, not false, and doesn't go through
+    /// CancelButton_Click/Window_KeyDown at all) — in one place, and reverts the live accent-color
+    /// preview SetAccentColor applies on every pick back to whatever was active when the dialog
+    /// opened. Save (DialogResult == true) leaves it as-is, since that's already the color that
+    /// was just persisted.
+    /// </summary>
+    private void Window_Closing(object? sender, System.ComponentModel.CancelEventArgs e)
+    {
+        if (DialogResult != true)
+        {
+            Application.Current.Resources["UserAccentBrush"] = new SolidColorBrush(_originalAccentColor);
         }
     }
 }

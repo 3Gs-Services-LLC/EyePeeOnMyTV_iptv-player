@@ -7,7 +7,8 @@
         ResizeMode="NoResize"
         Background="{StaticResource AppBackgroundBrush}"
         Foreground="{StaticResource AppForegroundBrush}"
-        KeyDown="Window_KeyDown">
+        KeyDown="Window_KeyDown"
+        Closing="Window_Closing">
     <Window.Resources>
         <Style TargetType="TextBox">
             <Setter Property="Padding" Value="8,6" />
@@ -39,6 +40,31 @@
             <Setter Property="BorderThickness" Value="0" />
             <Setter Property="Padding" Value="10,6" />
             <Setter Property="Cursor" Value="Hand" />
+        </Style>
+
+        <!-- Standard on/off switch — the app's first, so styled to match the existing dark theme
+             rather than any platform default. "On" uses the same {DynamicResource UserAccentBrush}
+             the favorite star / favorites filter already use, so it updates live if the user
+             changes their accent color; "off" uses the fixed, theme-independent ToggleOffBrush. -->
+        <Style x:Key="ToggleSwitchStyle" TargetType="ToggleButton">
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <Border x:Name="Track" Width="42" Height="22" CornerRadius="11"
+                                Background="{StaticResource ToggleOffBrush}">
+                            <Border x:Name="Thumb" Width="16" Height="16" CornerRadius="8"
+                                    Background="White" Margin="3,0" HorizontalAlignment="Left" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Track" Property="Background" Value="{DynamicResource UserAccentBrush}" />
+                                <Setter TargetName="Thumb" Property="HorizontalAlignment" Value="Right" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
         </Style>
     </Window.Resources>
 
@@ -106,6 +132,18 @@
                 <TextBlock x:Name="AccentColorHexText" VerticalAlignment="Center" Margin="10,0,0,0"
                            Foreground="{StaticResource AppMutedBrush}" />
             </StackPanel>
+
+            <Grid Margin="0,16,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Text="Play Last Viewed Channel on Startup" VerticalAlignment="Center"
+                           Foreground="{StaticResource AppForegroundBrush}" />
+                <ToggleButton x:Name="PlayLastViewedToggle" Grid.Column="1"
+                              Style="{StaticResource ToggleSwitchStyle}" VerticalAlignment="Center"
+                              ToolTip="Resume the last channel you were watching when the app starts" />
+            </Grid>
 
             <!-- ===== Validation / actions ===== -->
             <TextBlock x:Name="ErrorText" Foreground="#FF6B6B" TextWrapping="Wrap" Margin="0,16,0,0"

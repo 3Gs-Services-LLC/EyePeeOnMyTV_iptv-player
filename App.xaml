@@ -19,6 +19,12 @@
         -->
         <SolidColorBrush x:Key="UserAccentBrush" Color="#39FF14" />
 
+        <!-- Neutral "off" track color for on/off toggle switches (e.g. Settings > Play Last
+             Viewed Channel on Startup) — deliberately a plain StaticResource, not tied to
+             UserAccentBrush or any theme value, since an off toggle should read as greyed-out
+             regardless of the current accent color. -->
+        <SolidColorBrush x:Key="ToggleOffBrush" Color="#4A4A52" />
+
         <!--
             WPF's default Menu/MenuItem theme (and standard dialog chrome like GroupBox/ComboBox)
             pulls its colors from these SystemColors resource keys. Overriding them app-wide is far

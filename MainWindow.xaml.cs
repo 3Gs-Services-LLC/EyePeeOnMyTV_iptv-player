@@ -188,6 +188,11 @@ public partial class MainWindow : Window
 
     private async void MainWindow_Loaded(object sender, RoutedEventArgs e)
     {
+        // Before InitializePlayer, which reads VolumeSlider.Value for the media player's initial
+        // volume — restoring here means that first read already reflects the saved level instead
+        // of VolumeSlider's XAML design-time default, so there's no audible blip at launch.
+        RestoreVolumeAndMute();
+
         InitializePlayer();
 
         GetCursorPos(out _lastCursorPos);
@@ -214,13 +219,48 @@ public partial class MainWindow : Window
         _mediaPlayer.Playing += MediaPlayer_Playing;
     }
 
+    /// <summary>
+    /// Applies the persisted volume/mute level to the slider and _desiredMute before anything
+    /// plays — independent of PlayLastViewedChannelOnStartup, which only decides which channel
+    /// starts, not at what volume. Setting VolumeSlider.Value here does fire
+    /// VolumeSlider_ValueChanged, but that's harmless: it guards on _mediaPlayer being non-null,
+    /// which it isn't yet at this point in startup (InitializePlayer runs right after this).
+    /// _mediaPlayer.Mute itself gets applied later by MediaPlayer_Playing, once playback actually
+    /// starts and a real audio output exists to apply it to (see the comment there) — setting
+    /// MuteButton's icon here too just means it's already correct during the loading screen,
+    /// rather than flipping the instant playback begins.
+    /// </summary>
+    private void RestoreVolumeAndMute()
+    {
+        VolumeSlider.Value = _appSettings.Volume;
+        _desiredMute = _appSettings.Muted;
+        MuteButton.Content = _desiredMute ? "🔇" : "🔊";
+    }
+
+    /// <summary>
+    /// The one place volume/mute state is written to disk — called on every change (see
+    /// VolumeSlider_ValueChanged and ToggleMute) rather than only on close, so a crash or forced
+    /// quit doesn't lose it, the same reasoning PlayChannel already applies to LastViewedChannelId.
+    /// </summary>
+    private void SaveVolumeAndMute()
+    {
+        _appSettings.Volume = (int)VolumeSlider.Value;
+        _appSettings.Muted = _desiredMute;
+        SettingsService.Save(_appSettings);
+    }
+
+    /// <summary>
+    /// Genuine app-startup load only — always needs both the playlist and the guide, so this
+    /// fetches them concurrently for a faster first paint. A Settings save no longer routes
+    /// through here (see OpenSettings/ReloadPlaylistAsync/ReloadEpgAsync): most saves don't touch
+    /// either the IPTV or EPG fields at all (accent color, the startup-resume toggle, ...), and
+    /// unconditionally re-fetching both — which also means yanking the user to a fresh/resumed
+    /// channel via PlayChannel — on every save regardless was the actual bug being fixed there.
+    /// </summary>
     private async Task LoadDataAsync()
     {
         try
         {
-            // Explicitly re-show the loading state: it's Visible by default in XAML for the very
-            // first load, but LoadDataAsync also runs again after Settings are saved, when it's
-            // already Collapsed from the previous load.
             LoadingOverlay.Visibility = Visibility.Visible;
             LoadingProgressBar.IsIndeterminate = true;
 
@@ -240,7 +280,7 @@ public partial class MainWindow : Window
 
             if (_allChannels.Count > 0)
             {
-                PlayChannel(_allChannels[0]);
+                PlayChannel(ResolveStartupChannel());
             }
             else
             {
@@ -254,6 +294,64 @@ public partial class MainWindow : Window
             LoadingStatusText.Text = $"Failed to load: {ex.Message}";
             LoadingProgressBar.IsIndeterminate = false;
         }
+    }
+
+    /// <summary>
+    /// Re-fetches only the playlist — the half of a Settings-triggered reload that should run when
+    /// the M3U/Xtream fields actually changed. Deliberately independent of ReloadEpgAsync (rather
+    /// than both always running together, as at startup) so OpenSettings can fire only the side(s)
+    /// that actually changed instead of coupling an EPG-only edit to a playlist refetch or vice
+    /// versa.
+    /// </summary>
+    private async Task ReloadPlaylistAsync()
+    {
+        LoadingStatusText.Text = "Fetching playlist…";
+        _allChannels = await _dataSourceService.FetchChannelsAsync(_appSettings);
+        ApplyFavoriteState(_allChannels);
+        RefreshVisibleChannels(ChannelFilterBox.Text);
+
+        if (_allChannels.Count > 0)
+        {
+            PlayChannel(ResolveStartupChannel());
+        }
+        else
+        {
+            ShowPlaybackStatus("No channels found in the playlist.");
+        }
+    }
+
+    /// <summary>
+    /// Re-fetches only the EPG — the half of a Settings-triggered reload that should run when the
+    /// EPG URL list actually changed. See ReloadPlaylistAsync for why this is kept independent
+    /// rather than always paired with a playlist refetch.
+    /// </summary>
+    private async Task ReloadEpgAsync()
+    {
+        LoadingStatusText.Text = "Fetching guide…";
+        _epg = await FetchEpgSafeAsync();
+        UpdateEpgOverlay();
+    }
+
+    /// <summary>
+    /// Which channel to play once the playlist finishes (loading), used both at genuine app
+    /// startup and when Settings save triggers a reload — both cases are "the channel list was
+    /// just (re)loaded and something has to start playing", so gating this once here applies the
+    /// setting consistently in either case. Falls back to the first playlist channel — the app's
+    /// original, unconditional behavior — whenever the setting is off, or it's on but there's no
+    /// stored last-viewed channel (first run) or that channel is no longer in the playlist.
+    /// </summary>
+    private Channel ResolveStartupChannel()
+    {
+        if (_appSettings.PlayLastViewedChannelOnStartup)
+        {
+            var lastViewed = _allChannels.FirstOrDefault(c => GetChannelKey(c) == _appSettings.LastViewedChannelId);
+            if (lastViewed is not null)
+            {
+                return lastViewed;
+            }
+        }
+
+        return _allChannels[0];
     }
 
     private async Task<Dictionary<string, List<EpgProgramme>>> FetchEpgSafeAsync()
@@ -308,17 +406,18 @@ public partial class MainWindow : Window
 
     /// <summary>
     /// Channel objects are rebuilt from scratch by the M3U/Xtream parser on every fetch, so
-    /// favorite status can't be carried on the object between fetches — it's looked up here by a
-    /// stable per-channel identifier and re-applied to the fresh objects instead.
+    /// per-channel state (favorite status, last-viewed) can't be carried on the object between
+    /// fetches — it's looked up here by a stable identifier and re-applied to the fresh objects
+    /// instead. Shared by favorites and "play last viewed channel on startup" alike.
     /// </summary>
-    private static string GetFavoriteKey(Channel channel) =>
+    private static string GetChannelKey(Channel channel) =>
         !string.IsNullOrEmpty(channel.TvgId) ? channel.TvgId : channel.StreamUrl;
 
     private void ApplyFavoriteState(List<Channel> channels)
     {
         foreach (var channel in channels)
         {
-            channel.IsFavorite = _appSettings.FavoriteChannelIds.Contains(GetFavoriteKey(channel));
+            channel.IsFavorite = _appSettings.FavoriteChannelIds.Contains(GetChannelKey(channel));
         }
     }
 
@@ -331,7 +430,7 @@ public partial class MainWindow : Window
 
         channel.IsFavorite = !channel.IsFavorite;
 
-        var key = GetFavoriteKey(channel);
+        var key = GetChannelKey(channel);
         if (channel.IsFavorite)
         {
             if (!_appSettings.FavoriteChannelIds.Contains(key))
@@ -426,6 +525,12 @@ public partial class MainWindow : Window
 
         _currentChannel = channel;
         _currentStreamUrl = channel.StreamUrl;
+
+        // Persisted on every channel change (not just on close/exit) so a crash or forced quit
+        // doesn't lose it — this is the one place a channel actually starts playing, reached by
+        // every entry point (selection, Next/Previous, favorites, startup resume alike).
+        _appSettings.LastViewedChannelId = GetChannelKey(channel);
+        SettingsService.Save(_appSettings);
 
         PlayStream(channel.StreamUrl);
 
@@ -564,6 +669,7 @@ public partial class MainWindow : Window
         _mediaPlayer.Mute = muted;
         MuteButton.Content = muted ? "🔇" : "🔊";
         _desiredMute = muted;
+        SaveVolumeAndMute();
     }
 
     // ----- LibVLC events (fire off the UI thread) -----
@@ -867,6 +973,8 @@ public partial class MainWindow : Window
             MuteButton.Content = "🔊";
             _desiredMute = false;
         }
+
+        SaveVolumeAndMute();
     }
 
     /// <summary>
@@ -1280,28 +1388,87 @@ public partial class MainWindow : Window
 
     private async void OpenSettings()
     {
+        var previousSettings = _appSettings;
         var dialog = new SettingsWindow(_appSettings) { Owner = this };
         if (dialog.ShowDialog() == true)
         {
             // SettingsWindow already persisted the new values via SettingsService.Save — reload
-            // them here and immediately re-fetch the playlist/EPG so the change takes effect
-            // right away instead of requiring an app restart.
+            // them here so every other setting (accent color, the startup-resume toggle, ...)
+            // takes effect right away instead of requiring an app restart. Re-fetching the
+            // playlist/EPG, though, only makes sense — and only happens — when the fields that
+            // actually feed those fetches changed; see ReloadIfIptvOrEpgChangedAsync.
             _appSettings = SettingsService.Load();
             ApplyAccentColor();
-            await LoadDataAsync();
+            await ReloadIfIptvOrEpgChangedAsync(previousSettings, _appSettings);
+        }
+    }
+
+    /// <summary>
+    /// Compares specifically the IPTV (playlist mode, M3U URL, Xtream server/username/password/
+    /// port) and EPG (URL list) fields old vs. new, and reloads only whichever side actually
+    /// changed — instead of the previous blanket "any Settings save re-fetches everything"
+    /// behavior, which meant e.g. changing only the accent color also silently re-fetched the
+    /// whole playlist and jumped playback to a resumed/first channel via ReloadPlaylistAsync.
+    /// </summary>
+    private async Task ReloadIfIptvOrEpgChangedAsync(AppSettings previous, AppSettings current)
+    {
+        var iptvChanged =
+            previous.PlaylistMode != current.PlaylistMode ||
+            previous.M3uUrl != current.M3uUrl ||
+            previous.Xtream.ServerUrl != current.Xtream.ServerUrl ||
+            previous.Xtream.Username != current.Xtream.Username ||
+            previous.Xtream.Password != current.Xtream.Password ||
+            previous.Xtream.Port != current.Xtream.Port;
+
+        var epgChanged = !previous.EpgUrls.SequenceEqual(current.EpgUrls);
+
+        if (!iptvChanged && !epgChanged)
+        {
+            return;
+        }
+
+        try
+        {
+            LoadingOverlay.Visibility = Visibility.Visible;
+            LoadingProgressBar.IsIndeterminate = true;
+
+            if (iptvChanged)
+            {
+                await ReloadPlaylistAsync();
+            }
+
+            if (epgChanged)
+            {
+                await ReloadEpgAsync();
+            }
+
+            LoadingOverlay.Visibility = Visibility.Collapsed;
+        }
+        catch (Exception ex)
+        {
+            LoadingStatusText.Text = $"Failed to load: {ex.Message}";
+            LoadingProgressBar.IsIndeterminate = false;
         }
     }
 
     /// <summary>
     /// Swaps the app-wide UserAccentBrush resource (declared in App.xaml) for a new brush built
     /// from _appSettings.AccentColor. Replacing the dictionary entry — rather than mutating the
-    /// existing brush's Color — is what makes every DynamicResource consumer (Search today,
-    /// others later) pick up the change live, since XAML-declared brushes are frozen and can't be
-    /// mutated in place.
+    /// existing brush's Color — is what makes every {DynamicResource UserAccentBrush} consumer
+    /// (the Search placeholder, the per-channel favorite star, the startup-resume toggle) pick up
+    /// the change live, since XAML-declared brushes are frozen and can't be mutated in place.
+    ///
+    /// FavoritesFilterButton is the one exception: its Foreground is a plain code-behind property
+    /// assignment (see UpdateFavoritesFilterButton), not a {DynamicResource} binding, so it
+    /// captures whatever brush *object* was in the dictionary at the time and — unlike the
+    /// XAML-bound consumers — never notices the dictionary entry being replaced out from under it.
+    /// Re-running that same assignment here is what keeps it in sync instead of freezing on
+    /// whatever color was active the last time favorites-filter was toggled.
     /// </summary>
     private void ApplyAccentColor()
     {
         Application.Current.Resources["UserAccentBrush"] = new System.Windows.Media.SolidColorBrush(ParseAccentColor(_appSettings.AccentColor));
+        UpdateFavoritesFilterButton();
     }
 
     private static System.Windows.Media.Color ParseAccentColor(string hex)
